@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createOpenAI } from '@ai-sdk/openai'
-import { generateText } from 'ai'
 
 export async function GET() {
   const results: Record<string, string> = {}
@@ -24,22 +22,30 @@ export async function GET() {
     results.supabase_db = `ERROR: ${e}`
   }
 
-  // 3. Check DeepSeek API key
+  // 3. Check DeepSeek key
   const key = process.env.DEEPSEEK_API_KEY || ''
   results.deepseek_key = key.startsWith('sk-') ? `OK (len=${key.length})` : 'MISSING'
 
-  // 4. Quick DeepSeek API test
+  // 4. Test DeepSeek API directly
   try {
-    const deepseek = createOpenAI({
-      baseURL: 'https://api.deepseek.com/v1',
-      apiKey: process.env.DEEPSEEK_API_KEY,
+    const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: 'say ok' }],
+        max_tokens: 5,
+      }),
     })
-    const { text } = await generateText({
-      model: deepseek('deepseek-chat'),
-      prompt: 'Say "ok" in one word.',
-      maxOutputTokens: 10,
-    })
-    results.deepseek_api = `OK: ${text}`
+    const data = await res.json()
+    if (res.ok) {
+      results.deepseek_api = `OK: ${data.choices?.[0]?.message?.content}`
+    } else {
+      results.deepseek_api = `ERROR ${res.status}: ${data.error?.message}`
+    }
   } catch (e: unknown) {
     results.deepseek_api = `ERROR: ${e instanceof Error ? e.message : String(e)}`
   }
