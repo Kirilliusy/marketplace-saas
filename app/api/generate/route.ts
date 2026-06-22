@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { generateText } from 'ai'
 
 const deepseek = createOpenAI({
-  baseURL: 'https://api.deepseek.com',
+  baseURL: 'https://api.deepseek.com/v1',
   apiKey: process.env.DEEPSEEK_API_KEY,
 })
 

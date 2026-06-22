@@ -31,7 +31,7 @@ export async function GET() {
   // 4. Quick DeepSeek API test
   try {
     const deepseek = createOpenAI({
-      baseURL: 'https://api.deepseek.com',
+      baseURL: 'https://api.deepseek.com/v1',
       apiKey: process.env.DEEPSEEK_API_KEY,
     })
     const { text } = await generateText({
