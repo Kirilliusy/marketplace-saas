@@ -9,7 +9,11 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
-  const sig = req.headers.get('stripe-signature')!
+  const sig = req.headers.get('stripe-signature')
+
+  if (!sig) {
+    return NextResponse.json({ error: 'Missing stripe-signature' }, { status: 400 })
+  }
 
   let event
   try {
@@ -21,20 +25,30 @@ export async function POST(req: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object
     const userId = session.metadata?.user_id
+    const customerId = session.customer as string | null
+
     if (userId) {
-      await supabaseAdmin.from('profiles').upsert({ id: userId, is_pro: true })
+      await supabaseAdmin.from('profiles').upsert({
+        id: userId,
+        is_pro: true,
+        stripe_customer_id: customerId,
+      })
     }
   }
 
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object
-    const customer = await stripe.customers.retrieve(subscription.customer as string)
-    if ('email' in customer && customer.email) {
-      const { data: users } = await supabaseAdmin.auth.admin.listUsers()
-      const user = users.users.find(u => u.email === customer.email)
-      if (user) {
-        await supabaseAdmin.from('profiles').upsert({ id: user.id, is_pro: false })
-      }
+    const customerId = subscription.customer as string
+
+    // Look up by stored stripe_customer_id — no need to load all users
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .single()
+
+    if (profile?.id) {
+      await supabaseAdmin.from('profiles').update({ is_pro: false }).eq('id', profile.id)
     }
   }
 
