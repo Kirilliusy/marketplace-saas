@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { createOpenAI } from '@ai-sdk/openai'
+import { generateText } from 'ai'
 
 export async function GET() {
   const results: Record<string, string> = {}
@@ -23,33 +24,24 @@ export async function GET() {
     results.supabase_db = `ERROR: ${e}`
   }
 
-  // 3. Check Supabase RPC
-  try {
-    const supabase = await createClient()
-    const { data, error } = await supabase.rpc('increment_generation', {
-      user_id_input: '00000000-0000-0000-0000-000000000000',
-      free_limit: 5,
-    })
-    results.supabase_rpc = error ? `ERROR: ${error.message}` : `OK: ${JSON.stringify(data)}`
-  } catch (e) {
-    results.supabase_rpc = `ERROR: ${e}`
-  }
+  // 3. Check DeepSeek API key
+  const key = process.env.DEEPSEEK_API_KEY || ''
+  results.deepseek_key = key.startsWith('sk-') ? `OK (len=${key.length})` : 'MISSING'
 
-  // 4. Check Anthropic API key format
-  const key = process.env.ANTHROPIC_API_KEY || ''
-  results.anthropic_key = key.startsWith('sk-ant-') ? `OK (len=${key.length})` : `MISSING or wrong format`
-
-  // 5. Quick Anthropic API test
+  // 4. Quick DeepSeek API test
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 10,
-      messages: [{ role: 'user', content: 'say ok' }],
+    const deepseek = createOpenAI({
+      baseURL: 'https://api.deepseek.com',
+      apiKey: process.env.DEEPSEEK_API_KEY,
     })
-    results.anthropic_api = `OK: ${msg.content[0].type === 'text' ? msg.content[0].text : 'no text'}`
+    const { text } = await generateText({
+      model: deepseek('deepseek-chat'),
+      prompt: 'Say "ok" in one word.',
+      maxTokens: 10,
+    })
+    results.deepseek_api = `OK: ${text}`
   } catch (e: unknown) {
-    results.anthropic_api = `ERROR: ${e instanceof Error ? e.message : e}`
+    results.deepseek_api = `ERROR: ${e instanceof Error ? e.message : String(e)}`
   }
 
   return NextResponse.json(results)
