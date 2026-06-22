@@ -37,7 +37,7 @@ export async function GET() {
     const { text } = await generateText({
       model: deepseek('deepseek-chat'),
       prompt: 'Say "ok" in one word.',
-      maxTokens: 10,
+      maxOutputTokens: 10,
     })
     results.deepseek_api = `OK: ${text}`
   } catch (e: unknown) {
